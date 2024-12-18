@@ -1,31 +1,14 @@
 import random
 
-# Global board size
-board_size = 4  # Supports 4x4, 9x9, 16x16 Sudoku
-box_size = int(board_size ** 0.5)
+# Global board size and sub-box size
+global board_size  # Adjustable based on the GUI selection
 
-# INITIAL_SUDOKU = [
-#     [0, 0, 0, 0, 0, 0, 0, 0, 8],
-#     [0, 0, 3, 0, 0, 2, 0, 0, 0],
-#     [0, 0, 0, 4, 8, 0, 0, 0, 0],
-#     [0, 0, 0, 0, 0, 0, 0, 1, 6],
-#     [0, 0, 0, 8, 0, 4, 0, 0, 0],
-#     [7, 5, 0, 0, 0, 0, 0, 0, 0],
-#     [0, 0, 0, 0, 9, 3, 0, 0, 0],
-#     [0, 0, 0, 6, 0, 0, 4, 0, 0],
-#     [9, 0, 0, 0, 0, 0, 0, 0, 0],
-# ]
 
-INITIAL_SUDOKU = [
-    [0, 0, 0, 0],
-    [0, 0, 3, 0],
-    [0, 0, 0, 4],
-    [0, 0, 0, 0],
-]
+# Default initial Sudoku grid
+global INITIAL_SUDOKU
 
-# Utility Functions
 def make_gene(row):
-    """Create a shuffled row with respect to fixed cells."""
+    """Create a shuffled row while respecting fixed cells."""
     gene = list(range(1, board_size + 1))
     random.shuffle(gene)
     for i, val in enumerate(row):
@@ -35,15 +18,15 @@ def make_gene(row):
     return gene
 
 def make_chromosome(grid):
-    """Create a complete chromosome (board) respecting fixed cells."""
+    """Create a full Sudoku board as a chromosome."""
     return [make_gene(row) for row in grid]
 
 def make_population(count, grid):
-    """Generate the initial population."""
+    """Generate an initial population."""
     return [make_chromosome(grid) for _ in range(count)]
 
 def fitness(chromosome):
-    """Calculate fitness based on conflicts in rows, columns, and boxes."""
+    """Calculate conflicts in rows, columns, and boxes."""
     conflicts = 0
 
     # Row conflicts
@@ -55,6 +38,7 @@ def fitness(chromosome):
         col_values = [chromosome[row][col] for row in range(board_size)]
         conflicts += board_size - len(set(col_values))
 
+    box_size = int(board_size ** 0.5)
     # Box conflicts
     for box_row in range(0, board_size, box_size):
         for box_col in range(0, board_size, box_size):
@@ -68,7 +52,7 @@ def fitness(chromosome):
     return conflicts
 
 def mutation(chromosome, probability):
-    """Swap two mutable cells within a row."""
+    """Swap two mutable cells within a row with a given probability."""
     for i in range(board_size):
         if random.random() < probability:
             mutable_indices = [j for j in range(board_size) if INITIAL_SUDOKU[i][j] == 0]
@@ -83,19 +67,20 @@ def crossover(parent1, parent2):
     for row1, row2 in zip(parent1, parent2):
         point1, point2 = sorted(random.sample(range(board_size), 2))
         child_row = row1[:point1] + row2[point1:point2] + row1[point2:]
-        child.append([
-            row1[i] if INITIAL_SUDOKU[parent1.index(row1)][i] != 0 else child_row[i]
-            for i in range(board_size)
-        ])
+        # Keep fixed cells from INITIAL_SUDOKU
+        for i in range(board_size):
+            if INITIAL_SUDOKU[parent1.index(row1)][i] != 0:
+                child_row[i] = row1[i]
+        child.append(child_row)
     return child
 
 def tournament_selection(population, k=5):
-    """Select the best individual out of k random choices."""
+    """Select the best individual from k random solutions."""
     selected = random.sample(population, k)
     return min(selected, key=fitness)
 
-def genetic_algorithm(initial_grid, population_size=400, generations=4000, mutation_prob=0.1, progress_callback=None):
-    """Run the genetic algorithm with GUI updates."""
+def genetic_algorithm(initial_grid, population_size=1200, generations=1200, mutation_prob=0.2, progress_callback=None):
+    """Run the genetic algorithm to solve Sudoku."""
     population = make_population(population_size, initial_grid)
     best_solution = min(population, key=fitness)
     best_score = fitness(best_solution)
@@ -103,7 +88,11 @@ def genetic_algorithm(initial_grid, population_size=400, generations=4000, mutat
     for generation in range(generations):
         next_population = []
 
-        for _ in range(population_size):
+        # Elitism: Keep the best solution
+        next_population.append(best_solution)
+
+        # Generate the rest of the population
+        for _ in range(population_size - 1):
             parent1 = tournament_selection(population)
             parent2 = tournament_selection(population)
             child = crossover(parent1, parent2)
@@ -113,22 +102,22 @@ def genetic_algorithm(initial_grid, population_size=400, generations=4000, mutat
         current_best = min(population, key=fitness)
         current_score = fitness(current_best)
 
-        # Update the best solution if a better one is found
+        # Update the best solution
         if current_score < best_score:
             best_solution, best_score = current_best, current_score
 
-        # Update GUI every generation using the callback
+        # Update the GUI in real-time
         if progress_callback:
             progress_callback(current_best)
 
-        # Stop if a perfect solution is found
+        # Stop if fitness = 0
         if best_score == 0:
-            print(f"Solution found at generation {generation}")
+            print(f"Perfect solution found at generation {generation}")
             return best_solution
 
-        # Print progress every 500 generations
-        if generation % 500 == 0:
+        # Print progress every 100 generations
+        if generation % 100 == 0:
             print(f"Generation {generation}: Best Fitness = {best_score}")
 
-    print("No perfect solution found.")
+    print("No perfect solution found within the given generations.")
     return best_solution
