@@ -1,10 +1,8 @@
 import random
+import matplotlib.pyplot as plt
 
-# Global board size and sub-box size
+# Global board size and initial Sudoku grid
 global board_size  # Adjustable based on the GUI selection
-
-
-# Default initial Sudoku grid
 global INITIAL_SUDOKU
 
 def make_gene(row):
@@ -79,11 +77,33 @@ def tournament_selection(population, k=5):
     selected = random.sample(population, k)
     return min(selected, key=fitness)
 
-def genetic_algorithm(initial_grid, population_size=1200, generations=1200, mutation_prob=0.2, progress_callback=None):
+def plot_statistics(generation_nums, best_scores, avg_scores):
+    """Plot the statistics of the genetic algorithm."""
+    plt.figure(figsize=(12, 6))
+
+    # Plot best fitness
+    plt.plot(generation_nums, best_scores, label="Best Fitness", color="blue", marker="o")
+
+    # Plot average fitness
+    plt.plot(generation_nums, avg_scores, label="Average Fitness", color="green", linestyle="--")
+
+    plt.xlabel("Generation Number")
+    plt.ylabel("Fitness Score (Lower is Better)")
+    plt.title("Genetic Algorithm Fitness Progress")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
+def genetic_algorithm(initial_grid, population_size=1200, generations=1700, mutation_prob=0.2, progress_callback=None):
     """Run the genetic algorithm to solve Sudoku."""
     population = make_population(population_size, initial_grid)
     best_solution = min(population, key=fitness)
     best_score = fitness(best_solution)
+
+    # Track statistics
+    generation_nums = []
+    best_scores = []
+    avg_scores = []
 
     for generation in range(generations):
         next_population = []
@@ -106,6 +126,11 @@ def genetic_algorithm(initial_grid, population_size=1200, generations=1200, muta
         if current_score < best_score:
             best_solution, best_score = current_best, current_score
 
+        # Collect statistics
+        generation_nums.append(generation)
+        best_scores.append(best_score)
+        avg_scores.append(sum(fitness(ind) for ind in population) / len(population))
+
         # Update the GUI in real-time
         if progress_callback:
             progress_callback(current_best)
@@ -113,6 +138,7 @@ def genetic_algorithm(initial_grid, population_size=1200, generations=1200, muta
         # Stop if fitness = 0
         if best_score == 0:
             print(f"Perfect solution found at generation {generation}")
+            plot_statistics(generation_nums, best_scores, avg_scores)
             return best_solution
 
         # Print progress every 100 generations
@@ -120,4 +146,5 @@ def genetic_algorithm(initial_grid, population_size=1200, generations=1200, muta
             print(f"Generation {generation}: Best Fitness = {best_score}")
 
     print("No perfect solution found within the given generations.")
+    plot_statistics(generation_nums, best_scores, avg_scores)
     return best_solution

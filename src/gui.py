@@ -8,10 +8,10 @@ from utils import check_location_is_safe
 from Generic import genetic_algorithm, fitness
 import puzzle
 import utils
-import solver
+import backtracking
 import Generic
 
-def create_board_entries(root, board_size):
+def create_board_entries(frame, board_size):
     """Create a grid of Tkinter entries for Sudoku."""
     entries = []
     for i in range(board_size):
@@ -19,9 +19,9 @@ def create_board_entries(root, board_size):
         for j in range(board_size):
             color_index = (i // math.sqrt(board_size) + j // math.sqrt(board_size)) % 2
             entry = tk.Entry(
-                root,
-                width=5,
-                font=("Arial", 18),
+                frame,
+                width=3,
+                font=("Arial", 10),
                 borderwidth=1,
                 relief="solid",
                 justify="center",
@@ -32,38 +32,37 @@ def create_board_entries(root, board_size):
         entries.append(row_entries)
     return entries
 
-def show_board_size_selection_window():
-    """Display a window to let the user select the board size."""
+def show_board_size_selection_window(root, frame):
+    """Display the board size selection interface."""
+    for widget in frame.winfo_children():
+        widget.destroy()
+
     def set_board_size(size):
         global board_size
         board_size = size
         puzzle.board_size = size
         utils.board_size = size
-        solver.board_size = size
+        backtracking.board_size = size
         Generic.board_size = size
-        size_window.destroy()
-        create_gui()  # Recreate the GUI with the selected size
+        create_gui(root, frame)  # Create the Sudoku GUI
 
-    # Create a new window for selecting the board size
-    size_window = tk.Tk()
-    size_window.title("Select Board Size")
-
-    label = tk.Label(size_window, text="Select Sudoku Board Size", font=("Arial", 14))
+    label = tk.Label(frame, text="Select Sudoku Board Size", font=("Arial", 14))
     label.pack(pady=10)
 
-    button_4x4 = tk.Button(size_window, text="4x4", font=("Arial", 12), command=lambda: set_board_size(4))
+    button_4x4 = tk.Button(frame, text="4x4", font=("Arial", 12), command=lambda: set_board_size(4))
     button_4x4.pack(pady=5)
 
-    button_9x9 = tk.Button(size_window, text="9x9", font=("Arial", 12), command=lambda: set_board_size(9))
+    button_9x9 = tk.Button(frame, text="9x9", font=("Arial", 12), command=lambda: set_board_size(9))
     button_9x9.pack(pady=5)
 
-    button_16x16 = tk.Button(size_window, text="16x16", font=("Arial", 12), command=lambda: set_board_size(16))
+    button_16x16 = tk.Button(frame, text="16x16", font=("Arial", 12), command=lambda: set_board_size(16))
     button_16x16.pack(pady=5)
 
-    size_window.mainloop()
+def create_gui(root, frame):
+    """Main Sudoku GUI."""
+    for widget in frame.winfo_children():
+        widget.destroy()
 
-def create_gui():
-    """Main GUI window with integrated Genetic Algorithm and Original Solver."""
     def update_gui(arr):
         """Update the GUI with the current board state."""
         for i in range(board_size):
@@ -86,10 +85,8 @@ def create_gui():
                     row.append(0)
             grid.append(row)
 
-        # Assign grid to INITIAL_SUDOKU for Genetic Solver
         Generic.INITIAL_SUDOKU = [row.copy() for row in grid]
 
-        # Validate initial input
         for i in range(board_size):
             for j in range(board_size):
                 if grid[i][j] != 0:
@@ -106,7 +103,7 @@ def create_gui():
         def run_genetic_solver():
             solution = genetic_algorithm(
                 Generic.INITIAL_SUDOKU,
-                progress_callback=lambda grid: update_gui(grid),  # GUI update every generation
+                progress_callback=lambda grid: update_gui(grid),
             )
             if fitness(solution) == 0:
                 update_gui(solution)
@@ -115,18 +112,16 @@ def create_gui():
                 messagebox.showerror("Error", "Failed to solve the Sudoku.")
 
         if use_generic_solver.get():
-            # Solve using Genetic Algorithm in a separate thread
             threading.Thread(target=run_genetic_solver, daemon=True).start()
         else:
-            # Original solver logic
             empty_cells = [(row, col) for row in range(board_size) for col in range(board_size) if grid[row][col] == 0]
-            SL = []  # Solved cells
-            NSL = [(empty_cells[0], 0, [])]  # Next state
-            DE = []  # Dead ends
-            solver.solve_sudoku_async(grid, empty_cells, SL, NSL, DE, update_gui, root)
+            SL = []
+            NSL = [(empty_cells[0], 0, [])]
+            DE = []
+            backtracking.solve_sudoku_async(grid, empty_cells, SL, NSL, DE, update_gui, root)
 
     def generate_random_and_display():
-        """Generate a random Sudoku puzzle and display it."""
+        """Generate and display a random Sudoku puzzle."""
         grid = generate_random_sudoku()
         for i in range(board_size):
             for j in range(board_size):
@@ -160,19 +155,13 @@ def create_gui():
         else:
             messagebox.showinfo("Hint", "No empty cells to hint.")
 
-    # Initialize window
-    root = tk.Tk()
-    root.title("Sudoku Solver")
+    entries = create_board_entries(frame, board_size)
 
-    entries = create_board_entries(root, board_size)
-
-    # Button frame
-    button_frame = tk.Frame(root)
+    button_frame = tk.Frame(frame)
     button_frame.grid(row=board_size, column=0, columnspan=board_size, pady=10)
 
-    # Toggle button for solver selection
     use_generic_solver = tk.BooleanVar()
-    use_generic_solver.set(False)  # Default to original solver
+    use_generic_solver.set(False)
 
     def toggle_solver():
         use_generic_solver.set(not use_generic_solver.get())
@@ -192,7 +181,6 @@ def create_gui():
     )
     toggle_solver_button.grid(row=0, column=0, padx=5)
 
-    # Solve button
     solve_button = tk.Button(
         button_frame,
         text="Solve",
@@ -205,7 +193,6 @@ def create_gui():
     )
     solve_button.grid(row=0, column=1, padx=5)
 
-    # Random button
     random_button = tk.Button(
         button_frame,
         text="Random",
@@ -218,9 +205,7 @@ def create_gui():
     )
     random_button.grid(row=0, column=2, padx=5)
 
-    # Reset button
     reset_button = tk.Button(
-
         button_frame,
         text="Reset",
         font=("Arial", 14),
@@ -232,7 +217,6 @@ def create_gui():
     )
     reset_button.grid(row=1, column=0, columnspan=3, pady=10)
 
-    # Hint button
     hint_button = tk.Button(
         button_frame,
         text="Hint",
@@ -245,8 +229,11 @@ def create_gui():
     )
     hint_button.grid(row=2, column=0, columnspan=3, pady=10)
 
-    root.mainloop()
+# Main execution
+root = tk.Tk()
+root.title("Sudoku Solver")
+main_frame = tk.Frame(root)
+main_frame.pack(pady=20, padx=20)
 
-
-# Start with the size selection window
-show_board_size_selection_window()
+show_board_size_selection_window(root, main_frame)
+root.mainloop()
